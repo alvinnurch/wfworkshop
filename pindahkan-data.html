@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pindahkan data spreadsheet ke Supabase</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#F6F1EA; color:#1B1714; font-family:'IBM Plex Sans',system-ui,sans-serif; padding:40px 20px; }
+  .box { max-width:720px; margin:0 auto; background:#FFF; border:1px solid #E6DFD6; border-radius:14px; padding:32px; }
+  h1 { font-family:'Plus Jakarta Sans',system-ui,sans-serif; font-size:26px; margin:0 0 6px; letter-spacing:-.01em; }
+  p, li { font-size:14.5px; line-height:1.65; color:#5C534B; }
+  label { display:block; font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#7A6F66; margin:20px 0 6px; }
+  input { width:100%; box-sizing:border-box; border:1px solid #DCD3C8; border-radius:9px; padding:12px 14px; font-size:14.5px; background:#FCFAF7; }
+  button { background:#A5121C; color:#FFF; border:none; border-radius:9px; padding:14px 22px; font-size:14.5px; font-weight:700; margin-top:24px; cursor:pointer; }
+  button:disabled { background:#D6CCC2; cursor:default; }
+  pre { background:#1B1714; color:#F1EBE3; border-radius:10px; padding:16px; font-size:12.5px; line-height:1.6; overflow:auto; max-height:320px; margin-top:22px; white-space:pre-wrap; }
+  a { color:#A5121C; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Pindahkan data dari spreadsheet</h1>
+  <p>Alat sekali pakai: membaca data dari Web app Apps Script yang lama, lalu menuliskannya ke Supabase. Jalankan setelah <code>schema.sql</code> dipasang dan <code>config.js</code> diisi.</p>
+
+  <label for="api">URL Web app Apps Script (yang lama)</label>
+  <input id="api" placeholder="https://script.google.com/macros/s/…/exec" />
+
+  <label for="pw">Kata sandi admin (yang tersimpan di Supabase)</label>
+  <input id="pw" type="password" placeholder="sandi panitia" />
+
+  <button id="go">Mulai pindahkan</button>
+  <pre id="log">Menunggu…</pre>
+  <p>Setelah selesai, buka <a href="index.html">index.html</a> dan masuk sebagai admin untuk memeriksa hasilnya.</p>
+</div>
+
+<script src="config.js"></script>
+<script
+const el = id => document.getElementById(id);
+const out = [];
+function say(t) { out.push(t); el('log').textContent = out.join('\n'); }
+
+const BASE = (window.SUPABASE && window.SUPABASE.url || '').replace(/\/+$/, '');
+const KEY = (window.SUPABASE && window.SUPABASE.anonKey) || '';
+function rest(path, opts) {
+  opts = opts || {};
+  return fetch(BASE + '/rest/v1' + path, {
+    method: opts.method || 'GET',
+    headers: Object.assign({ apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, opts.headers || {}),
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  }).then(r => r.ok ? (r.status === 204 ? null : r.json()) : r.text().then(t => { throw new Error(t); }));
+}
+const rpc = (n, a) => rest('/rpc/' + n, { method: 'POST', body: a || {} });
+function chunk(arr, n) { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; }
+async function push(table, rows, conflict) {
+  for (const part of chunk(rows, 200)) {
+    await rest('/' + table + (conflict ? '?on_conflict=' + conflict : ''), {
+      method: 'POST', body: part,
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }
+    });
+  }
+}
+
+el('go').onclick = async () => {
+  const api = el('api').value.trim(), pw = el('pw').value;
+  if (!BASE || !KEY) return say('✗ config.js belum diisi (url / anonKey).');
+  if (!api) return say('✗ URL Apps Script belum diisi.');
+  el('go').disabled = true;
+  try {
+    say('→ Mengambil data dari spreadsheet…');
+    const res = await fetch(api + '?action=db');
+    const json = await res.json();
+    if (!json || !json.ok || !json.data) throw new Error('Web app tidak mengembalikan data. Periksa URL dan akses "Anyone".');
+    const db = json.data;
+    say('  ' + (db.sessions || []).length + ' sesi, ' + (db.participants || []).length + ' peserta terbaca.');
+
+    say('→ Menyimpan susunan sesi & materi…');
+    await rpc('save_config', { p_password: pw, p_doc: { sessions: db.sessions || [] } });
+
+    say('→ Menyimpan daftar peserta…');
+    await rpc('save_participants', { p_password: pw, p_rows: db.participants || [] });
+
+    const openMap = {};
+    let activeBlock = null, run = null;
+    (db.sessions || []).forEach(s => {
+      (s.blocks || []).forEach(b => { openMap[b.id] = !!b.open; });
+      if (s.id === db.activeSessionId) { activeBlock = s.active || null; run = s.run || null; }
+    });
+    await rpc('save_live', { p_password: pw, p_session: db.activeSessionId || null, p_block: activeBlock, p_run: run, p_open: openMap });
+
+    const R = db.responses || {};
+    const checkins = [], quiz = [], words = [], fb = [], forms = [];
+    Object.keys(R).forEach(sid => {
+      const r = R[sid] || {};
+      Object.keys(r.checkins || {}).forEach(pid => checkins.push({ session_id: sid, participant_id: pid, at_label: String(r.checkins[pid] || ''), method: 'migrasi' }));
+      Object.keys(r.quiz || {}).forEach(bid => Object.keys(r.quiz[bid]).forEach(pid => {
+        const x = r.quiz[bid][pid];
+        quiz.push({ session_id: sid, block_id: bid, participant_id: pid, score: x.score || 0, answers: x.answers || [], tries: x.tries || 1 });
+      }));
+      (r.words || []).forEach(w => words.push({ session_id: sid, block_id: w.blockId, participant_id: w.by, word: String(w.word || '').toLowerCase() }));
+      Object.keys(r.feedback || {}).forEach(bid => Object.keys(r.feedback[bid]).forEach(pid => {
+        const f = r.feedback[bid][pid];
+        fb.push({ session_id: sid, block_id: bid, participant_id: pid, emoji: f.emoji || '', note: f.note || '' });
+      }));
+      Object.keys(r.forms || {}).forEach(bid => Object.keys(r.forms[bid]).forEach(pid => {
+        const ans = r.forms[bid][pid] || {};
+        Object.keys(ans).filter(k => k.indexOf('_nama') < 0).forEach(fid => {
+          forms.push({ session_id: sid, block_id: bid, participant_id: pid, field_id: fid, value: ans[fid] == null ? '' : String(ans[fid]), file_name: ans[fid + '_nama'] || '' });
+        });
+      }));
+    });
+
+    say('→ Memindahkan jawaban: ' + checkins.length + ' check in, ' + quiz.length + ' kuis, ' + words.length + ' kata, ' + fb.length + ' umpan balik, ' + forms.length + ' isian formulir…');
+    await push('checkins', checkins, 'session_id,participant_id');
+    await push('quiz_answers', quiz, 'session_id,block_id,participant_id');
+    if (words.length) await push('words', words);
+    await push('feedback', fb, 'session_id,block_id,participant_id');
+    await push('form_answers', forms, 'session_id,block_id,participant_id,field_id');
+
+    say('✓ Selesai. Semua data sudah berada di Supabase.');
+  } catch (e) {
+    say('✗ Gagal: ' + (e && e.message ? e.message : e));
+    say('  Petunjuk: sandi salah → periksa tabel admin_secret. Pesan CORS → pastikan Web app Apps Script masih aktif.');
+  } finally {
+    el('go').disabled = false;
+  }
+}
+</script>
+</body>
+</html>
