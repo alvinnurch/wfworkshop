@@ -11,7 +11,7 @@
    Jalankan:   node server.js
    Pengaturan lewat variabel lingkungan (semuanya opsional):
      PORT=8080            port pendengar
-     ADMIN_PASSWORD=...   sandi panitia (default: gantiSandiIni)
+     ADMIN_PASSWORD=...   sandi panitia (default: sayaadminnya)
      DATA_FILE=data.json  lokasi berkas data
    ══════════════════════════════════════════════════════════════ */
 
@@ -22,7 +22,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
-const ADMIN = process.env.ADMIN_PASSWORD || 'gantiSandiIni';
+const ADMIN = process.env.ADMIN_PASSWORD || 'sayaadminnya';
 const DATA_FILE = path.resolve(process.env.DATA_FILE || path.join(__dirname, 'data.json'));
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'unggahan');
