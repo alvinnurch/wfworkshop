@@ -29,6 +29,10 @@
   <label for="pw">Kata sandi admin (yang tersimpan di Supabase)</label>
   <input id="pw" type="password" placeholder="sandi panitia" />
 
+  <label for="raw">Atau: tempel data JSON secara manual</label>
+  <p style="margin:0 0 8px">Buka URL di atas pada tab peramban (sedang login Google), salin <strong>seluruh</strong> teks yang tampil, lalu tempel di sini. Kolom ini menang bila diisi.</p>
+  <textarea id="raw" rows="5" placeholder='{"ok":true,"data":{"sessions":[...]}}' style="width:100%;box-sizing:border-box;border:1px solid #DCD3C8;border-radius:9px;padding:12px 14px;font-size:13px;background:#FCFAF7;font-family:ui-monospace,monospace"></textarea>
+
   <button id="go">Mulai pindahkan</button>
   <pre id="log">Menunggu…</pre>
   <p>Setelah selesai, buka <a href="index.html">index.html</a> dan masuk sebagai admin untuk memeriksa hasilnya.</p>
@@ -62,15 +66,24 @@ async function push(table, rows, conflict) {
 }
 
 el('go').onclick = async () => {
-  const api = el('api').value.trim(), pw = el('pw').value;
+  const api = el('api').value.trim(), pw = el('pw').value, raw = el('raw').value.trim();
   if (!BASE || !KEY) return say('✗ config.js belum diisi (url / anonKey).');
-  if (!api) return say('✗ URL Apps Script belum diisi.');
+  if (!api && !raw) return say('✗ Isi URL Apps Script, atau tempel data JSON-nya.');
   el('go').disabled = true;
   try {
-    say('→ Mengambil data dari spreadsheet…');
-    const res = await fetch(api + '?action=db');
-    const json = await res.json();
-    if (!json || !json.ok || !json.data) throw new Error('Web app tidak mengembalikan data. Periksa URL dan akses "Anyone".');
+    let json;
+    if (raw) {
+      say('→ Membaca data yang Anda tempel…');
+      try { json = JSON.parse(raw); } catch (e) { throw new Error('Teks yang ditempel bukan JSON yang sah. Salin seluruh isi halaman, dari { sampai }.'); }
+      if (json && !json.data && json.sessions) json = { ok: true, data: json };
+    } else {
+      say('→ Mengambil data dari spreadsheet…');
+      const res = await fetch(api + '?action=db');
+      const txt = await res.text();
+      if (txt.replace(/^\s+/, '').charAt(0) === '<') throw new Error('Apps Script membalas halaman login, bukan data. Buka Deploy → Manage deployments → Edit, setel "Who has access" = Anyone — atau pakai kolom tempel JSON di atas.');
+      try { json = JSON.parse(txt); } catch (e) { throw new Error('Jawaban Apps Script tidak dapat dibaca sebagai JSON.'); }
+    }
+    if (!json || !json.data) throw new Error('Data tidak ditemukan dalam jawaban tersebut.');
     const db = json.data;
     say('  ' + (db.sessions || []).length + ' sesi, ' + (db.participants || []).length + ' peserta terbaca.');
 
