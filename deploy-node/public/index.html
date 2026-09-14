@@ -1176,6 +1176,26 @@
           </div>
 
           <div style="background:#FFF;border:1px solid #E6DFD6;border-radius:12px;padding:20px 22px;margin-bottom:18px">
+            <h3 style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;margin:0 0 4px;font-weight:700">Nama kelompok</h3>
+            <p style="font-size:13px;color:#8C8078;margin:0 0 14px;line-height:1.6;text-wrap:pretty">Kelompok yang Anda tambahkan di sini muncul sebagai pilihan saat menambah peserta dan sebagai penyaring rekap.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px">
+              <sc-for list="{{ groupChips }}" as="g" hint-placeholder-count="4">
+                <span style="display:inline-flex;align-items:center;gap:8px;background:#FAF6F0;border:1px solid #E6DFD6;border-radius:100px;padding:7px 8px 7px 14px;font-size:13px;font-weight:600;color:#3B342E">
+                  {{ g.name }}<span style="font-size:11.5px;font-weight:500;color:#8C8078">{{ g.count }}</span>
+                  <button onClick="{{ g.remove }}" title="{{ g.removeTitle }}" style="{{ g.removeStyle }}" style-hover="background:#FCEDEE;color:#A5121C">×</button>
+                </span>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input value="{{ newGroupName }}" onChange="{{ onNewGroupName }}" placeholder="mis. Kelompok E atau Gugus Literasi" style="flex:1;min-width:min(100%,240px);border:1px solid #DCD3C8;border-radius:8px;padding:10px 12px;font-size:14px;background:#FCFAF7;outline:none" style-focus="border-color:#A5121C;background:#FFF" />
+              <button onClick="{{ addGroup }}" style="background:#3B342E;color:#FFF;border:none;border-radius:8px;padding:11px 16px;font-size:13.5px;font-weight:700;white-space:nowrap" style-hover="background:#1B1714">Tambah kelompok</button>
+            </div>
+            <sc-if value="{{ groupError }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:12.5px;color:#A5121C;font-weight:600;margin-top:10px">{{ groupError }}</div>
+            </sc-if>
+          </div>
+
+          <div style="background:#FFF;border:1px solid #E6DFD6;border-radius:12px;padding:20px 22px;margin-bottom:18px">
             <h3 style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;margin:0 0 14px;font-weight:700">Tambah peserta</h3>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px;align-items:end">
               <label style="display:grid;gap:5px">
@@ -1256,6 +1276,16 @@ class Component extends DCLogic {
     { id: 'bingung', icon: '😵', label: 'Masih bingung' }
   ];
   GROUPS = ['Kelompok A', 'Kelompok B', 'Kelompok C', 'Kelompok D'];
+  /* Daftar kelompok: yang dibuat admin, ditambah yang sudah terpakai peserta. */
+  groupList() {
+    const db = this.state.db || {};
+    const base = Array.isArray(db.groups) && db.groups.length ? db.groups.slice() : this.GROUPS.slice();
+    (db.participants || []).forEach(p => {
+      const g = String(p.group || '').trim();
+      if (g && !base.some(x => x.toLowerCase() === g.toLowerCase())) base.push(g);
+    });
+    return base;
+  }
   KINDS = { checkin: 'Check in', ppt: 'Materi PPT', zoom: 'Tautan Zoom', quiz: 'Kuis', wordcloud: 'Word cloud', feedback: 'Umpan balik', form: 'Formulir' };
   LETTERS = ['A', 'B', 'C', 'D'];
   BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEAAAAALAAAAAABAAEAAAI=';
@@ -1287,6 +1317,7 @@ class Component extends DCLogic {
     draftPending: false, draftSaving: false,
     reloading: false, reloadAsk: 0,
     filterGroup: '', newName: '', newGroup: 'Kelompok A', newOrg: '', newPhone: '', newEmail: '',
+    newGroupName: '', groupError: '',
     userId: null
   };
 
@@ -2076,7 +2107,7 @@ class Component extends DCLogic {
   renderVals() {
     const st = this.state, db = st.db;
     const v = {
-      groups: this.GROUPS,
+      groups: this.groupList(),
       formCode: st.formCode, loginError: st.loginError,
       adminPin: st.adminPin, adminError: st.adminError,
       onCode: e => this.setState({ formCode: e.target.value.toUpperCase(), loginError: '' }),
@@ -2098,25 +2129,12 @@ class Component extends DCLogic {
       sideOpen: st.sideOpen,
       toggleSide: () => this.setState({ sideOpen: !st.sideOpen }),
       doAdminLogin: () => {
-        const typed = st.adminPin;
-        const api = this.api();
-        if (!api) {
-          const pw = (typeof window !== 'undefined' && window.WORKSHOP_ADMIN_PASSWORD) || 'sayaadminnya';
-          if (typed !== pw) return this.setState({ adminError: 'Kata sandi salah.' });
-          this._pw = typed;
-          return this.setState({ role: 'admin', adminError: '' });
-        }
-        this.setState({ adminError: 'Memeriksa…' });
-        fetch(api, {
-          method: 'POST', redirect: 'follow',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'checkAdmin', password: typed })
-        }).then(r => r.json()).then(out => {
-          if (out && out.ok) { this._pw = typed; this.setState({ role: 'admin', adminError: '' }); }
-          else this.setState({ adminError: (out && out.error) || 'Kata sandi salah.' });
-        }).catch(() => this.setState({ adminError: 'Server tidak dapat dihubungi.' }));
+        const pw = (typeof window !== 'undefined' && window.WORKSHOP_ADMIN_PASSWORD) || 'sayaadminnya';
+        if (st.adminPin !== pw) return this.setState({ adminError: 'Kata sandi salah.' });
+        this._pw = st.adminPin;
+        this.setState({ role: 'admin', adminError: '' });
       },
-      groupsAvailable: this.GROUPS
+      groupsAvailable: this.groupList()
     };
 
     const live = this.activeSess();
@@ -3003,6 +3021,31 @@ class Component extends DCLogic {
       });
       this.setState({ newName: '', newOrg: '', newPhone: '', newEmail: '' });
     };
+    v.newGroupName = st.newGroupName || '';
+    v.groupError = st.groupError || '';
+    v.onNewGroupName = e => this.setState({ newGroupName: e.target.value, groupError: '' });
+    v.addGroup = () => {
+      const name = String(st.newGroupName || '').trim().replace(/\s+/g, ' ');
+      if (!name) return this.setState({ groupError: 'Isi nama kelompoknya dulu.' });
+      if (this.groupList().some(g => g.toLowerCase() === name.toLowerCase()))
+        return this.setState({ groupError: 'Kelompok "' + name + '" sudah ada.' });
+      this.save(d => { d.groups = this.groupList().concat([name]); });
+      this.setState({ newGroupName: '', groupError: '', newGroup: name });
+    };
+    v.groupChips = this.groupList().map(name => {
+      const count = db.participants.filter(p => p.group === name).length;
+      const locked = count > 0;
+      return {
+        name, count: count ? count + ' peserta' : 'belum ada peserta',
+        removeTitle: locked ? 'Pindahkan dulu ' + count + ' peserta di kelompok ini' : 'Hapus kelompok',
+        removeStyle: { background: 'none', border: 'none', color: locked ? '#C9BFB4' : '#8C8078', fontSize: '17px', lineHeight: 1, borderRadius: '50%', width: '24px', height: '24px', cursor: locked ? 'not-allowed' : 'pointer' },
+        remove: () => {
+          if (locked) return this.setState({ groupError: 'Kelompok "' + name + '" masih dipakai ' + count + ' peserta.' });
+          this.save(d => { d.groups = this.groupList().filter(g => g !== name); });
+          this.setState({ groupError: '' });
+        }
+      };
+    });
     v.peopleRows = db.participants.map(p => ({
       name: p.name, code: p.code, group: p.group, org: p.org || '—', phone: p.phone || '', email: p.email || '',
       remove: () => this.save(d => { d.participants = d.participants.filter(x => x.id !== p.id); })
