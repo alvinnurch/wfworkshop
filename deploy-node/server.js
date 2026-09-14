@@ -314,7 +314,7 @@ server.listen(PORT, () => {
   console.log('│ Platform Workshop Terintegrasi');
   console.log('│ Berjalan di   : http://localhost:' + PORT);
   console.log('│ Data          : ' + DATA_FILE);
-  console.log('│ Sandi admin   : ' + (process.env.ADMIN_PASSWORD ? '(dari ADMIN_PASSWORD)' : ADMIN + '  ← segera ganti!'));
+  console.log('│ Sandi admin   : ' + ADMIN + (process.env.ADMIN_PASSWORD ? '  (dari ADMIN_PASSWORD)' : '  (bawaan server.js)'));
   console.log('└───────────────────────────────────────────────');
 });
 
