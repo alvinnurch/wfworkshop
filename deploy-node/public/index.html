@@ -1294,7 +1294,8 @@ class Component extends DCLogic {
     const id = 's' + Math.random().toString(36).slice(2, 7);
     return {
       sessions: [{ id, title: 'Sesi baru', desc: '', speaker: '', time: '', venue: '', mode: 'Tatap muka', active: null, run: null, blocks: [] }],
-      activeSessionId: id, participants: [], responses: { [id]: { checkins: {}, quiz: {}, words: [], feedback: {}, forms: {} } }
+      activeSessionId: id, participants: [], groups: this.GROUPS.slice(),
+      responses: { [id]: { checkins: {}, quiz: {}, words: [], feedback: {}, forms: {} } }
     };
   }
   bootDb() {
@@ -1387,7 +1388,8 @@ class Component extends DCLogic {
         s.id, txt(s.title),
         (s.blocks || []).map(b => [b.id, b.type, txt(b.title), !!b.enabled,
           (b.questions || []).length, (b.fields || []).length])
-      ])) + '|' + (db.participants || []).map(p => p.id).join(',');
+      ])) + '|' + (db.participants || []).map(p => p.id).join(',')
+        + '|' + (db.groups || []).join(',');
     } catch (e) { return String(Math.random()); }
   }
   /* fetch dengan batas waktu agar tombol tidak tersangkut di "Menyimpan…". */
@@ -1806,7 +1808,7 @@ class Component extends DCLogic {
     const seedWords = ['tabayun', 'damai', 'literasi', 'hoaks', 'toleransi', 'dialog', 'santun', 'verifikasi', 'moderasi', 'empati', 'kritis', 'damai', 'literasi', 'tabayun', 'toleransi', 'damai', 'verifikasi', 'dialog', 'literasi', 'damai'];
     seedWords.forEach((w, i) => r.words.push({ blockId: 'b3', word: w, by: participants[i % participants.length].id }));
 
-    return { sessions: [s1, s2], activeSessionId: 's1', participants, responses: resp };
+    return { sessions: [s1, s2], activeSessionId: 's1', participants, groups: this.GROUPS.slice(), responses: resp };
   }
 
   // helpers
