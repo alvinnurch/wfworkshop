@@ -28,7 +28,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const UPLOAD_DIR = path.join(PUBLIC_DIR, 'unggahan');
 
 /* ── Data: dipegang di memori, ditulis ke berkas secara atomik ── */
-const EMPTY = { sessions: [], activeSessionId: null, participants: [], responses: {} };
+const EMPTY = { sessions: [], activeSessionId: null, participants: [], groups: [], responses: {} };
 let db = load();
 let version = 1;
 let writeTimer = null;
@@ -46,6 +46,7 @@ function load() {
 function normalize(d) {
   d.sessions = d.sessions || [];
   d.participants = d.participants || [];
+  d.groups = Array.isArray(d.groups) ? d.groups : [];
   d.responses = d.responses || {};
   d.sessions.forEach(s => {
     if (!d.responses[s.id]) d.responses[s.id] = { checkins: {}, quiz: {}, words: [], feedback: {}, forms: {} };
@@ -226,6 +227,7 @@ function handleAction(p) {
       const incoming = p.db || {};
       db.sessions = incoming.sessions || [];
       db.participants = incoming.participants || [];
+      db.groups = Array.isArray(incoming.groups) ? incoming.groups : (db.groups || []);
       db.activeSessionId = incoming.activeSessionId || (db.sessions[0] ? db.sessions[0].id : null);
       const keep = db.responses || {};
       db.responses = {};
