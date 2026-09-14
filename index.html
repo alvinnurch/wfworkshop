@@ -629,7 +629,7 @@
       </div>
       <sc-if value="{{ isDemoMode }}" hint-placeholder-val="{{ false }}">
         <div style="background:#FAF6F0;border:1px solid #E6DFD6;border-radius:10px;padding:13px 16px;font-size:13px;color:#5C534B;line-height:1.6;margin-bottom:22px;text-wrap:pretty">
-          <strong style="color:#1B1714">Mode demo — data hanya tersimpan di perangkat ini.</strong> Mulai dengan menyusun sesi, materi, dan daftar peserta. Agar seluruh panitia dan peserta melihat data yang sama, isi <code style="background:#F1EBE3;padding:2px 6px;border-radius:4px">WORKSHOP_API</code> pada berkas <code style="background:#F1EBE3;padding:2px 6px;border-radius:4px">config.js</code> dengan URL Web app Apps Script.
+          <strong style="color:#1B1714">Mode demo — data hanya tersimpan di perangkat ini.</strong> Mulai dengan menyusun sesi, materi, dan daftar peserta. Agar seluruh panitia dan peserta melihat data yang sama, isi <code style="background:#F1EBE3;padding:2px 6px;border-radius:4px">url</code> dan <code style="background:#F1EBE3;padding:2px 6px;border-radius:4px">anonKey</code> pada berkas <code style="background:#F1EBE3;padding:2px 6px;border-radius:4px">config.js</code> dengan nilai dari Supabase (Project Settings → API). Versi ini memakai Supabase, bukan spreadsheet.
         </div>
       </sc-if>
 
